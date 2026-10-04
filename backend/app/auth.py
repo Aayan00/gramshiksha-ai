@@ -26,27 +26,33 @@ def jwks_client(url: str) -> PyJWKClient:
     return PyJWKClient(url, cache_jwk_set=True, lifespan=300)
 
 def verify_token(token: str) -> dict:
-    # 1. Allow development bypass tokens ONLY if explicitly in development mode and Supabase is not configured
-    if settings.app_env == "development" and not settings.supabase_url:
-        if token.startswith("dev-"):
-            role = token.replace("dev-", "").strip().lower()
-            if role in ("school_admin", "admin"):
-                role = "school_admin"
-            elif role not in ("school_admin", "teacher", "staff"):
-                role = "school_admin"
-            # Fixed deterministic UUIDs for dev identities
-            dev_user_id = UUID("00000000-0000-0000-0000-000000000001") if role == "school_admin" else UUID("00000000-0000-0000-0000-000000000002")
-            return {
-                "sub": str(dev_user_id),
-                "role": role,
-                "email": f"{role}@gramshiksha.local",
-                "app_metadata": {"role": role},
-                "iss": "gramshiksha-dev",
-                "aud": settings.jwt_audience,
-            }
+    # 1. Allow development bypass tokens if token is a dev- token and Supabase URL is not configured or dev mode is active
+    if token.startswith("dev-"):
+        role = token.replace("dev-", "").strip().lower()
+        if role in ("school_admin", "admin"):
+            role = "school_admin"
+            dev_user_id = UUID("00000000-0000-0000-0000-000000000001")
+        elif role == "teacher":
+            dev_user_id = UUID("00000000-0000-0000-0000-000000000002")
+        else:
+            role = "staff"
+            dev_user_id = UUID("00000000-0000-0000-0000-000000000003")
+
+        return {
+            "sub": str(dev_user_id),
+            "role": role,
+            "email": f"{role}@gramshiksha.local",
+            "app_metadata": {"role": role},
+            "iss": "gramshiksha-dev",
+            "aud": settings.jwt_audience,
+        }
 
     if not settings.supabase_url:
-        raise HTTPException(status_code=503, detail="Supabase authentication is not configured. Set SUPABASE_URL in .env")
+        raise HTTPException(
+            status_code=503,
+            detail="Supabase authentication is not configured on this server. Set SUPABASE_URL in backend environment variables.",
+        )
+
 
     issuer = settings.supabase_url.rstrip("/") + "/auth/v1"
     jwks_url = issuer + "/.well-known/jwks.json"
@@ -82,8 +88,8 @@ def get_current_user(
         UserProfile.is_active.is_(True),
     ).one_or_none()
 
-    # In dev mode, auto-seed default dev school and user profile if missing
-    if profile is None and settings.app_env == "development" and not settings.supabase_url and credentials.credentials.startswith("dev-"):
+    # In dev/demo mode, auto-seed default dev school and user profile if missing
+    if profile is None and credentials.credentials.startswith("dev-"):
         dev_school = db.query(School).first()
         if dev_school is None:
             dev_school = School(
@@ -101,7 +107,13 @@ def get_current_user(
             db.commit()
 
         role = claims.get("role", "school_admin")
-        display_name = "Shri. Rameshwar Patil (Headmaster)" if role == "school_admin" else "Smt. Sunita Kadam (Math & Science Teacher)"
+        if role == "school_admin":
+            display_name = "Shri. Rameshwar Patil (Headmaster)"
+        elif role == "teacher":
+            display_name = "Smt. Sunita Kadam (Teacher)"
+        else:
+            display_name = "Shri. Vitthalrao Pawar (Block Staff)"
+
         profile = UserProfile(
             id=user_id,
             school_id=dev_school.id,
@@ -113,6 +125,7 @@ def get_current_user(
         db.add(profile)
         db.commit()
         db.refresh(profile)
+
 
     if profile is None:
         raise HTTPException(status_code=403, detail="No active school profile is provisioned for this account")

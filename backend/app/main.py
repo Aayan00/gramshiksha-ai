@@ -252,6 +252,27 @@ def seed_sample_data(db: Session, school: School, admin_user: UserProfile):
             remarks=None if idx != 3 else "Medical leave",
         ))
 
+    # 7. Additional Demo User Profiles (Teacher & Staff)
+    teacher_user = UserProfile(
+        id=UUID("00000000-0000-0000-0000-000000000002"),
+        school_id=school.id,
+        role="teacher",
+        display_name="Smt. Sunita Kadam (Teacher)",
+        email="teacher@gramshiksha.local",
+        phone="+91 98220 54321",
+        is_active=True,
+    )
+    staff_user = UserProfile(
+        id=UUID("00000000-0000-0000-0000-000000000003"),
+        school_id=school.id,
+        role="staff",
+        display_name="Shri. Vitthalrao Pawar (Block Staff)",
+        email="staff@gramshiksha.local",
+        phone="+91 98220 67890",
+        is_active=True,
+    )
+    db.add(teacher_user)
+    db.add(staff_user)
     db.commit()
 
 
@@ -260,41 +281,40 @@ async def lifespan(app: FastAPI):
     # Auto-initialize database tables
     Base.metadata.create_all(bind=engine)
     
-    # Auto-seed initial demo dataset in development mode if database is completely empty
-    if settings.app_env == "development":
-        db = Session(bind=engine)
-        try:
-            school_count = db.query(School).count()
-            if school_count == 0:
-                school = School(
-                    id=UUID("00000000-0000-0000-0000-000000000100"),
-                    name="Zilla Parishad Primary School, Shirur",
-                    udise_code="27251401201",
-                    panchayat_name="Shirur Gram Panchayat",
-                    district="Pune",
-                    state="Maharashtra",
-                    contact_email="zp.shirur@gramshiksha.org",
-                    contact_phone="+91 2138 222100",
-                    academic_year="2024-2025",
-                )
-                db.add(school)
-                db.commit()
+    # Auto-seed initial demo dataset if database has no schools yet
+    db = Session(bind=engine)
+    try:
+        school_count = db.query(School).count()
+        if school_count == 0:
+            school = School(
+                id=UUID("00000000-0000-0000-0000-000000000100"),
+                name="Zilla Parishad Primary School, Shirur",
+                udise_code="27251401201",
+                panchayat_name="Shirur Gram Panchayat",
+                district="Pune",
+                state="Maharashtra",
+                contact_email="zp.shirur@gramshiksha.org",
+                contact_phone="+91 2138 222100",
+                academic_year="2024-2025",
+            )
+            db.add(school)
+            db.commit()
 
-                admin_user = UserProfile(
-                    id=UUID("00000000-0000-0000-0000-000000000001"),
-                    school_id=school.id,
-                    role="school_admin",
-                    display_name="Shri. Rameshwar Patil (Headmaster)",
-                    email="admin@gramshiksha.local",
-                    phone="+91 98220 12345",
-                    is_active=True,
-                )
-                db.add(admin_user)
-                db.commit()
+            admin_user = UserProfile(
+                id=UUID("00000000-0000-0000-0000-000000000001"),
+                school_id=school.id,
+                role="school_admin",
+                display_name="Shri. Rameshwar Patil (Headmaster)",
+                email="admin@gramshiksha.local",
+                phone="+91 98220 12345",
+                is_active=True,
+            )
+            db.add(admin_user)
+            db.commit()
 
-                seed_sample_data(db, school, admin_user)
-        finally:
-            db.close()
+            seed_sample_data(db, school, admin_user)
+    finally:
+        db.close()
     yield
 
 
@@ -308,10 +328,14 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins,
+    allow_origin_regex=r"^https:\/\/.*\.vercel\.app$",
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=86400,
 )
+
 
 def record_audit(db: Session, school_id: UUID, actor: CurrentUser | None, action: str, entity_type: str, entity_id: str | None, details: dict):
     event = AuditEvent(

@@ -15,7 +15,16 @@ import {
   AuditEvent,
 } from '../types'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+const getApiBase = (): string => {
+  const envUrl = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000').trim()
+  return envUrl.replace(/\/+$/, '')
+}
+
+export const buildUrl = (path: string): string => {
+  const base = getApiBase()
+  const cleanPath = path.startsWith('/') ? path : `/${path}`
+  return `${base}${cleanPath}`
+}
 
 let currentToken: string | null = localStorage.getItem('gramshiksha_auth_token') || 'dev-school_admin'
 
@@ -34,11 +43,13 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers || {})
   headers.set('Content-Type', 'application/json')
   
-  if (currentToken) {
-    headers.set('Authorization', `Bearer ${currentToken}`)
+  const token = getAuthToken()
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`)
   }
 
-  const response = await fetch(`${API_BASE}${path}`, {
+  const url = buildUrl(path)
+  const response = await fetch(url, {
     ...options,
     headers,
   })
@@ -56,6 +67,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   return response.json()
 }
+
 
 export const api = {
   // Identity & Me
@@ -162,5 +174,6 @@ export const api = {
   },
 
   // Reports Export URL
-  getReportUrl: (type: 'students' | 'teachers' | 'assessments' | 'matching-summary') => `${API_BASE}/reports/${type}.csv`,
+  getReportUrl: (type: 'students' | 'teachers' | 'assessments' | 'matching-summary') => buildUrl(`/reports/${type}.csv`),
 }
+

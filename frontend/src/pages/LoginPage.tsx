@@ -16,7 +16,7 @@ import {
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate()
-  const { loginAsDev, loginWithSupabase, registerWithSupabase, isSupabaseEnabled } = useAuth()
+  const { user, isAuthenticated, isLoading: authLoading, loginAsDev, loginWithSupabase, registerWithSupabase, isSupabaseEnabled } = useAuth()
   const { success, error: toastError } = useToast()
 
   const [mode, setMode] = useState<'quick' | 'supabase'>(isSupabaseEnabled ? 'supabase' : 'quick')
@@ -26,12 +26,20 @@ export const LoginPage: React.FC = () => {
   const [displayName, setDisplayName] = useState('')
   const [loading, setLoading] = useState(false)
 
+  // Redirect if already logged in
+  React.useEffect(() => {
+    if (!authLoading && isAuthenticated && user) {
+      navigate('/dashboard', { replace: true })
+    }
+  }, [isAuthenticated, authLoading, user, navigate])
+
   const handleQuickLogin = async (role: 'school_admin' | 'teacher' | 'staff') => {
+    if (loading) return
     setLoading(true)
     try {
       await loginAsDev(role)
       success(`Logged in successfully as ${role === 'school_admin' ? 'Headmaster' : role === 'teacher' ? 'Teacher' : 'Staff'}`)
-      navigate('/dashboard')
+      navigate('/dashboard', { replace: true })
     } catch (err: any) {
       toastError(err.message || 'Login failed')
     } finally {
@@ -41,6 +49,7 @@ export const LoginPage: React.FC = () => {
 
   const handleSupabaseSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (loading) return
     setLoading(true)
     try {
       if (isRegister) {
@@ -50,7 +59,7 @@ export const LoginPage: React.FC = () => {
       } else {
         await loginWithSupabase(email, password)
         success('Signed in successfully with Supabase!')
-        navigate('/dashboard')
+        navigate('/dashboard', { replace: true })
       }
     } catch (err: any) {
       toastError(err.message || 'Authentication failed')
@@ -58,6 +67,7 @@ export const LoginPage: React.FC = () => {
       setLoading(false)
     }
   }
+
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col justify-center items-center p-4 sm:p-6 selection:bg-sky-500 selection:text-white">
