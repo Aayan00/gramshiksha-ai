@@ -1,0 +1,46 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: gramshiksha
+      POSTGRES_USER: gramshiksha
+      POSTGRES_PASSWORD: local_only_change_me
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gramshiksha -d gramshiksha"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - gramshiksha_pgdata:/var/lib/postgresql/data
+
+  api:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql+psycopg://gramshiksha:local_only_change_me@db:5432/gramshiksha
+      SUPABASE_URL: https://example-project.supabase.co
+      JWT_AUDIENCE: authenticated
+      CORS_ORIGINS: http://localhost:5173,http://localhost:3000,http://localhost:80
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+  frontend:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+
+volumes:
+  gramshiksha_pgdata:
