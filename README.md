@@ -178,6 +178,63 @@ docker compose up --build
 
 ---
 
+## ☁️ Production Cloud Deployment Guide
+
+### 1. GitHub Repository Setup
+```bash
+git remote add origin https://github.com/Aayan00/gramshiksha-ai.git
+git branch -M main
+git push -u origin main
+```
+
+### 2. Supabase PostgreSQL & Auth Setup
+1. Create a project on [supabase.com](https://supabase.com).
+2. Retrieve your PostgreSQL connection string from **Project Settings → Database** (URI format with `sslmode=require`).
+3. Retrieve your project URL and publishable `anon` key from **Project Settings → API**.
+4. Run Alembic migrations against Supabase:
+   ```bash
+   cd backend
+   # In .env set DATABASE_URL=postgresql+psycopg://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres?sslmode=require
+   alembic upgrade head
+   ```
+5. Refer to [`docs/supabase_setup.md`](docs/supabase_setup.md) for full Row Level Security (RLS) policies and authentication setup.
+
+### 3. Backend Deployment (Render)
+1. Go to [Render.com](https://render.com) and create a **New Web Service** linked to your GitHub repository `Aayan00/gramshiksha-ai`.
+2. Configure the service:
+   - **Environment:** Docker (or Python 3.12)
+   - **Root Directory:** `./backend` (or use the included `render.yaml` Blueprint at the repository root)
+   - **Docker Context:** `./backend`
+   - **DockerfilePath:** `./backend/Dockerfile`
+   - **Health Check Path:** `/health/live`
+3. Set the following **Environment Variables**:
+   | Variable | Example Value | Description |
+   | :--- | :--- | :--- |
+   | `APP_ENV` | `production` | Enables production mode |
+   | `DATABASE_URL` | `postgresql+psycopg://...` | Supabase connection string |
+   | `SUPABASE_URL` | `https://[PROJECT-REF].supabase.co` | Supabase project URL |
+   | `JWT_AUDIENCE` | `authenticated` | Supabase JWT audience |
+   | `CORS_ORIGINS` | `https://gramshiksha-ai.vercel.app` | Deployed frontend URL |
+4. Deploy the service. Your backend will be available at `https://gramshiksha-api.onrender.com`.
+
+### 4. Frontend Deployment (Vercel)
+1. Go to [Vercel.com](https://vercel.com) and click **Add New → Project** from your GitHub repository `Aayan00/gramshiksha-ai`.
+2. Configure the project settings:
+   - **Framework Preset:** Vite
+   - **Root Directory:** `frontend`
+   - **Build Command:** `npm run build`
+   - **Output Directory:** `dist`
+   - **Install Command:** `npm install`
+3. Set the following **Environment Variables**:
+   | Variable | Value | Description |
+   | :--- | :--- | :--- |
+   | `VITE_API_BASE_URL` | `https://gramshiksha-api.onrender.com` | Deployed Render backend URL |
+   | `VITE_SUPABASE_URL` | `https://[PROJECT-REF].supabase.co` | Supabase project URL |
+   | `VITE_SUPABASE_ANON_KEY` | `eyJhbGciOi...` | Supabase publishable anon key |
+4. Click **Deploy**. Vercel will automatically handle client-side SPA routing using the included [`frontend/vercel.json`](frontend/vercel.json).
+
+---
+
 ## 🛡️ Security & Minors Safeguards
 
 - **Strict School Isolation**: All database queries are filtered by the authenticated user's server-side `school_id`. Cross-school queries return `404 Not Found`.

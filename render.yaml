@@ -1,7 +1,11 @@
+# Render Blueprint for GramShiksha AI
+# Documentation: https://render.com/docs/blueprint-spec
 services:
   - type: web
     name: gramshiksha-api
     runtime: docker
+    plan: free
+    region: oregon
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
     healthCheckPath: /health/live
@@ -10,9 +14,12 @@ services:
         value: production
       - key: DATABASE_URL
         sync: false
+        # e.g., postgresql+psycopg://postgres:[YOUR-PASSWORD]@db.[YOUR-PROJECT-REF].supabase.co:5432/postgres?sslmode=require
       - key: SUPABASE_URL
         sync: false
+        # e.g., https://[YOUR-PROJECT-REF].supabase.co
       - key: JWT_AUDIENCE
         value: authenticated
       - key: CORS_ORIGINS
         sync: false
+        # e.g., https://gramshiksha-ai.vercel.app,http://localhost:5173
